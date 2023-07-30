@@ -1,0 +1,116 @@
+import sys
+from urllib.request import urlopen 
+import json
+from board import *
+import RPi.GPIO as GPIO 
+from time import sleep 
+import adafruit_dht 
+import requests
+#GPIO SETUP
+GPIO.setwarnings(False) 
+channel = 21
+channel1 = 26 #led
+channel2 = D17
+GPIO.setmode(GPIO.BOARD) 
+GPIO.setup(channel, GPIO.IN) #soilmoisture
+GPIO.setup(channel2, GPIO.IN) #rain 
+GPIO.setup(channel1, GPIO.OUT, initial=GPIO.LOW) #led
+l2 = 0
+
+# Enter Your API key here
+myAPI = '17BH2KDK2FDL0SJV' #write API key
+# URL where we will send the data, Don't change it
+baseURL = 'https://api.thingspeak.com/update?api_key=%s' % myAPI
+
+m= adafruit_dht.DHT11(channel2, usepulseio=False)
+
+def DHT11_data():
+# Reading from DHT11 and storing the temperature and humidity 
+	m.measure()
+	temp = m.temperature
+	humi=m.humidity
+	return humi, temp
+
+while True : 
+	try:
+		GPIO.output(channel1, GPIO.LOW) 
+		humi, temp = DHT11_data()
+		# If Reading is valid
+			if isinstance(humi, float) and isinstance(temp, float): 
+				# Formatting to two decimal places
+				humi = '%.2f' % humi 
+				temp = '%.2f' % temp
+
+				# Sending the data to thingspeak
+				conn = urlopen(baseURL + '&field1=%s&field2=%s' % (temp, humi)) 
+				print (conn.read())
+				# Closing the connection 
+				conn.close()
+			else:
+				print ('Error') 
+				sleep(2)
+
+		if GPIO.input(channel): 
+			w=0;
+			# Sending the data to thingspeak
+			conn = urlopen(baseURL + '&field3=%s' % (w)) 
+			print (conn.read())
+			# Closing the connection 
+			conn.close()
+			print ('No Water Detected!') sleep(1)
+		else:
+			w=1;
+			# Sending the data to thingspeak
+			conn = urlopen(baseURL + '&field3=%s' % (w)) 
+			print (conn.read())
+			# Closing the connection 
+			conn.close()
+			print ('Water Detected!') 
+			sleep(1)
+
+		if GPIO.input(channel2):
+			w=0;
+			conn = urlopen(baseURL + '&field4=%s' % (w))
+			print (conn.read())
+			# Closing the connection 
+			conn.close()
+        		print('No rain')
+        		time.sleep(1)
+    		else:
+			w=1;
+			conn = urlopen(baseURL + '&field4=%s' % (w)) 
+			print (conn.read())
+			# Closing the connection 
+			conn.close()
+        		print('raining')
+			time.sleep(1)
+
+
+			#conn=urlopen('https://api.thingspeak.com/channels/1311832/fields/3?api_key=BZRSVPRF V11EJI2I')
+		response = requests.get("https://api.thingspeak.com/channels/1311832/fields/3?api_key=BZRSVPRFV1 1EJI2I")  #moisture
+		response1 = requests.get("https://api.thingspeak.com/channels/1311832/fields/4?api_key=BZRSVPRFV1 1EJI2I")  #rain
+		data_dict = response.json() #moisture
+		data_dict1 = response.json() #rain
+		l1=len(data_dict['feeds']) #moisture
+		l3=len(data_dict1['feeds'])#rain
+		if l1 != l2: 
+			v=data_dict['feeds'][-1] 
+			print(data_dict['feeds'][-1]) 
+			vf=v['field3'] 
+			print(v['field3'])
+		if int(vf) == 1:
+			GPIO.output(channel1, GPIO.HIGH) 
+			# Turn on 
+			sleep(15) 
+			# Sleep for 1 second
+		else:
+			GPIO.output(channel1, GPIO.LOW) 
+			# Turn on 
+			sleep(3) 
+			# Sleep for 1 second
+			l2 = l1 
+		else:
+			l2=l1
+	except Exception as e: 
+		print(str(e))
+		break
